@@ -151,12 +151,20 @@ window.signal_connect('delete_event') { Gtk.main_quit }
 mainbox = Gtk::VBox.new(false, 0)
 
 user = Gtk::Entry.new
+history = Gtk::TextView.new
+user.signal_connect("focus_out_event") {
+  Thread.new {
+    uid = parse_uid(user.text)
+    history.buffer.text = refresh_history(uid) unless uid.nil?
+    history.buffer.text = '(no messages)' if uid.nil?
+  }
+  false
+}
 user.completion = completion user
 msg = Gtk::Entry.new
 mainbox.pack_start(make_box("User:", user), false, false, 3)
 mainbox.pack_start(make_box("Message:", msg), false, false, 3)
 
-history = Gtk::TextView.new
 history.left_margin = 10
 history.editable = false
 history.wrap_mode = Gtk::TextTag::WRAP_WORD
