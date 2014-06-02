@@ -115,6 +115,10 @@ def f_video v
   "#{v['title']}\nhttps://vk.com/video#{v['owner_id']}_#{v['vid']}"
 end
 
+def f_photo p
+  p['src_big']
+end
+
 def f_audio v
   "#{v['artist']} -- #{v['title']}\n#{v['url'].partition("?").first}"
 end
@@ -130,7 +134,7 @@ end
 def f_at at
   case at['type']
   when 'photo' then
-    'photo!'
+    "photo:\n#{f_photo at['photo']}"
   when 'video' then
     "video:\n#{f_video at['video']}"
   when 'audio' then
