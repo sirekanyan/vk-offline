@@ -72,13 +72,60 @@ def make_send_button text, user, msg
   button
 end
 
-def make_history_button text, user
+def scrolled_win textview
+  scrolled_win = Gtk::ScrolledWindow.new
+  scrolled_win.add(textview)
+  scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
+  vbox = Gtk::VBox.new(false, 5)
+  vbox.pack_start(scrolled_win, true,  true, 0)
+  return vbox
+end
+
+def make_history_button text, user, history
   button = Gtk::Button.new(text)
   button.signal_connect("clicked") {
-    puts "Show history for user #{user.text}"
+    if $history_opened then
+      history.hide
+      button.label = 'Show history'
+      $history_opened = false
+    else
+      history.show
+      history.buffer.text = "getting..."
+      Thread.new {
+        uid = parse_uid(user.text)
+        buff = ""
+        usrname = ""
+        if uid then
+          buff = $vk.messages_getHistory(:user_id => uid)
+          usrname = $vk.user(uid)['first_name']
+        end
+        buff_temp = "Total: " + buff.shift.to_s + "\n\n"
+        buff.each do |msg|
+          if msg['out'] == 1 then
+            who = "Me:\n"
+          else
+            who = "#{usrname}:\n"
+          end
+          attach = ""
+          if msg['attachment'] then
+            attach = "(attachment)\n"
+          end
+          body = msg['body']
+          body += "\n" unless body.empty?
+          buff_temp += who + body + attach + "\n"
+        end
+        history.buffer.text = buff_temp
+        history.buffer.text = "(no messages yet)" if buff.to_s == "[0]"
+      }
+      button.label = 'Hide history'
+      $history_opened = true
+    end
+
   }
   button
 end
+
+$history_opened = false
 
 window = Gtk::Window.new
 window.set_title  "Send message"
@@ -94,10 +141,21 @@ mainbox.pack_start(make_box("User:", user), false, false, 3)
 mainbox.pack_start(make_box("Message:", msg), false, false, 3)
 mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
 
+history = Gtk::TextView.new
+history.left_margin = 10
+history.editable = false
+history.wrap_mode = Gtk::TextTag::WRAP_WORD
+history.hide
+i = 0
+history.signal_connect("show") {
+  history.hide if i == 0
+  i = 1
+}
 buttonsbox = Gtk::HBox.new(false, 0)
-buttonsbox.pack_start(make_history_button("Show history", user), false, false, 3)
-buttonsbox.pack_start(make_send_button("Send", user, msg), false, false, 3)
-mainbox.pack_start(buttonsbox, false, false, 0)
+buttonsbox.pack_start(make_send_button("Send message", user, msg), false, false, 3)
+buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
+mainbox.pack_start(buttonsbox, false, false, 5)
+mainbox.pack_start(scrolled_win(history), true, true, 5)
 
 window.add(mainbox)
 window.show_all
