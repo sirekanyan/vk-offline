@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+require_relative 'model/vk-type.rb'
 require 'gtk2'
 Dir.chdir File.expand_path File.dirname($0)
 require 'vk-ruby'
@@ -96,39 +97,74 @@ def scrolled_win textview
   return vbox
 end
 
-def format_message msg, usrname
-  unread = (msg['read_state'] == 0 ? "*" : "")
-  if msg['out'] == 1 then
-    who = "#{unread}Me:\n"
+def f_date d
+  timedate = Time.at(d)
+  date = timedate.to_date
+  date = "today" if date == Date.today
+  time = timedate.strftime("%T")
+  "#{date} at #{time}"
+end
+
+def f_body b
+  b += "\n" unless b.empty?
+end
+
+def f_video v
+  "#{v['title']}\nhttps://vk.com/video#{v['owner_id']}_#{v['vid']}"
+end
+
+def f_audio v
+  "#{v['artist']} -- #{v['title']}\n#{v['url'].partition("?").first}"
+end
+
+def f_at at
+  case at['type']
+  when 'photo' then
+    'photo!'
+  when 'video' then
+    "video:\n#{f_video at['video']}"
+  when 'audio' then
+    "audio:\n#{f_audio at['audio']}"
+  when 'doc' then
+    'doc!'
+  when 'wall' then
+    'wall!'
   else
-    who = "#{unread}#{usrname}:\n"
-  end
-  attach = ""
-  if msg['attachment'] then
-    attach = "(attachment)\n"
-  end
-  body = msg['body']
-  body += "\n" unless body.empty?
-  body += msg.to_s + "\n" if body.empty?
-  return who + body + attach + "\n"
+    at.to_s
+  end 
+end
+
+def f_attach a
+  return '' if a == nil
+  a.map{|at| f_at at}.join("\n") + "\n"
+end
+
+def f_message msg, usrname, online: false
+  m = msg.to_obj
+  unread = m.read_state == 0 ? "[unread] " : ""
+  online = online && m.out != 1 ? "[online] " : ""
+  who = m.out == 1 ? "Me" : usrname
+  return "#{online}#{unread}#{who} (#{f_date m.date}):\n#{f_body m.body}#{f_attach m.attachments}\n"
 end
 
 def refresh_history uid
   buff = ""
   usrname = ""
+  online = false
   if uid then
-    users = $vk.users([uid])
-    if users == -1 then
+    user = $vk.users_get(:user_id => uid, :fields => 'online').first
+    if user == -1 then
       buff = [-1]
     else
-      usrname = users.first['first_name']
+      usrname = user['first_name']
+      online = user['online'] == 1
       buff = $vk.messages_getHistory(:user_id => uid)
     end
   end
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    buff_temp += format_message(msg, usrname)
+    buff_temp += f_message(msg, usrname, online: online)
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
@@ -140,7 +176,7 @@ def refresh_new_msgs uid
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    buff_temp += format_message(msg, msg['uid'])
+    buff_temp += f_message(msg, msg['uid'])
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
