@@ -93,10 +93,11 @@ def scrolled_win textview
 end
 
 def format_message msg, usrname
+  unread = (msg['read_state'] == 0 ? "*" : "")
   if msg['out'] == 1 then
-    who = "Me:\n"
+    who = "#{unread}Me:\n"
   else
-    who = "#{usrname}:\n"
+    who = "#{unread}#{usrname}:\n"
   end
   attach = ""
   if msg['attachment'] then
