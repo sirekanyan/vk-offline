@@ -54,7 +54,7 @@ def make_box text_label, entity
   hbox
 end
 
-def completion user
+def get_user_with_completion user
   users = Gtk::EntryCompletion.new
   model = Gtk::ListStore.new(String)
   $users.each do |v|
@@ -63,7 +63,8 @@ def completion user
   end
   users.model = model
   users.text_column = 0
-  users
+  user.completion = users
+  return user
 end
 
 def make_send_button text, user, msg, history
@@ -143,40 +144,47 @@ def make_history_button text, user, history
   button
 end
 
+def get_buttons user, msg, history
+  buttonsbox = Gtk::HBox.new(false, 0)
+  buttonsbox.pack_start(make_send_button("Send message", user, msg, history), false, false, 3)
+  buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
+  buttonsbox
+end
+
+def get_history_textview user
+  history = Gtk::TextView.new
+  user.signal_connect("focus_out_event") {
+    Thread.new {
+      uid = parse_uid(user.text)
+      history.buffer.text = refresh_history(uid) unless uid.nil?
+      history.buffer.text = '(no messages)' if uid.nil?
+    }
+    false
+  }
+  history.left_margin = 10
+  history.editable = false
+  history.wrap_mode = Gtk::TextTag::WRAP_WORD
+  history
+end
+
+def get_mainbox
+  mainbox = Gtk::VBox.new(false, 0)
+  user = get_user_with_completion(Gtk::Entry.new)
+  msg = Gtk::Entry.new
+  mainbox.pack_start(make_box("User:", user), false, false, 3)
+  mainbox.pack_start(make_box("Message:", msg), false, false, 3)
+
+  history = get_history_textview(user)
+  mainbox.pack_start(get_buttons(user, msg, history), false, false, 5)
+  mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
+  mainbox.pack_start(scrolled_win(history), true, true, 5)
+end
+
 window = Gtk::Window.new
 window.set_title  "Offline Messenger"
 window.set_size_request(420, 500)
 window.border_width = 10
 window.signal_connect('delete_event') { Gtk.main_quit }
-
-mainbox = Gtk::VBox.new(false, 0)
-
-user = Gtk::Entry.new
-history = Gtk::TextView.new
-user.signal_connect("focus_out_event") {
-  Thread.new {
-    uid = parse_uid(user.text)
-    history.buffer.text = refresh_history(uid) unless uid.nil?
-    history.buffer.text = '(no messages)' if uid.nil?
-  }
-  false
-}
-user.completion = completion user
-msg = Gtk::Entry.new
-mainbox.pack_start(make_box("User:", user), false, false, 3)
-mainbox.pack_start(make_box("Message:", msg), false, false, 3)
-
-history.left_margin = 10
-history.editable = false
-history.wrap_mode = Gtk::TextTag::WRAP_WORD
-
-buttonsbox = Gtk::HBox.new(false, 0)
-buttonsbox.pack_start(make_send_button("Send message", user, msg, history), false, false, 3)
-buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
-mainbox.pack_start(buttonsbox, false, false, 5)
-mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
-mainbox.pack_start(scrolled_win(history), true, true, 5)
-
-window.add(mainbox)
+window.add(get_mainbox)
 window.show_all
 Gtk.main
