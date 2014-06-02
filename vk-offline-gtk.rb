@@ -19,11 +19,13 @@ $users = []
 $online = 0
 
 add_to_list($vk.friends_get(fields: 'uid', order: 'hints', fields: 'online'))
+add_to_list($vk.friends_get(fields: 'uid', order: 'hints', fields: 'online', lang: 'ru'))
 
 if File.exists?('friends.txt') then
   uids = File.read('friends.txt').split("\n")
   uids.each_slice(250) do |i|
     add_to_list($vk.users_get(user_ids: i.join(','), fields: 'online'))
+    add_to_list($vk.users_get(user_ids: i.join(','), fields: 'online', lang: 'ru'))
   end
 else
   puts '| You may specify more users with friends.txt file'
@@ -117,6 +119,14 @@ def f_audio v
   "#{v['artist']} -- #{v['title']}\n#{v['url'].partition("?").first}"
 end
 
+def f_wall w
+  "https://vk.com/wall#{w['to_id']}_#{w['id']}"
+end
+
+def f_doc d
+  "#{d['title']}\nhttps://vk.com/doc#{d['owner_id']}_#{d['did']}"
+end
+
 def f_at at
   case at['type']
   when 'photo' then
@@ -126,9 +136,9 @@ def f_at at
   when 'audio' then
     "audio:\n#{f_audio at['audio']}"
   when 'doc' then
-    'doc!'
+    "doc:\n#{f_doc at['doc']}"
   when 'wall' then
-    'wall!'
+    "wall:\n#{f_wall at['wall']}"
   else
     at.to_s
   end 
@@ -176,7 +186,8 @@ def refresh_new_msgs uid
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    buff_temp += f_message(msg, msg['uid'])
+    user = $vk.user( msg['uid'] )
+    buff_temp += f_message(msg, user['first_name'] + " " + user['last_name'])
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
