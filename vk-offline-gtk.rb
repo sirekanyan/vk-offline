@@ -18,9 +18,14 @@ $online = 0
 
 add_to_list($vk.friends_get(fields: 'uid', order: 'hints', fields: 'online'))
 
-uids = File.read('friends.txt').split("\n")
-uids.each_slice(250) do |i|
-  add_to_list($vk.users_get(user_ids: i.join(','), fields: 'online'))
+if File.exists?('friends.txt') then
+  uids = File.read('friends.txt').split("\n")
+  uids.each_slice(250) do |i|
+    add_to_list($vk.users_get(user_ids: i.join(','), fields: 'online'))
+  end
+else
+  puts '| You may specify more users with friends.txt file'
+  puts '| Just create friends.txt file with list of user ids'
 end
 
 $users.uniq!
@@ -30,9 +35,11 @@ $labels_size = $labels.map{|k,v| v.length}.max
 
 def parse_uid username
   if u = username.match(/^(id)?(\d+)$/) then
-    uid = u[2]
+    u[2]
   elsif u = username.match(/\<(id)?(\d+)\>$/) then
-    uid = u[2]     
+    u[2]
+  else
+    nil     
   end
 end
 
@@ -59,14 +66,18 @@ def completion user
   users
 end
 
-def make_send_button text, user, msg
+def make_send_button text, user, msg, history
   button = Gtk::Button.new(text)
   button.signal_connect("clicked") {
     uid = parse_uid(user.text)
-    if uid then
+    if !uid.nil? then
       mid = $vk.messages_send(:user_id => uid, :message => msg.text)
       usr = $vk.user(uid)['first_name']
       puts "Message ##{mid} for #{usr} has been sent"
+      history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
+      Thread.new {
+        history.buffer.text = refresh_history(uid)
+      }
     end
   }
   button
@@ -81,35 +92,51 @@ def scrolled_win textview
   return vbox
 end
 
+def format_message msg, usrname
+  if msg['out'] == 1 then
+    who = "Me:\n"
+  else
+    who = "#{usrname}:\n"
+  end
+  attach = ""
+  if msg['attachment'] then
+    attach = "(attachment)\n"
+  end
+  body = msg['body']
+  body += "\n" unless body.empty?
+  return who + body + attach + "\n"
+end
+
+def refresh_history uid
+  buff = ""
+  usrname = ""
+  if uid then
+    users = $vk.users([uid])
+    if users == -1 then
+      buff = [-1]
+    else
+      usrname = users.first['first_name']
+      buff = $vk.messages_getHistory(:user_id => uid)
+    end
+  end
+  ans = buff.shift
+  buff_temp = ""
+  buff.each do |msg|
+    buff_temp += format_message(msg, usrname)
+  end
+  buff_temp = "(no messages yet)" if buff.empty?
+  buff_temp = "(check user id)" if ans == -1
+  return buff_temp
+end
+
 def make_history_button text, user, history
   button = Gtk::Button.new(text)
   button.signal_connect("clicked") {
     history.buffer.text = "getting..."
     Thread.new {
       uid = parse_uid(user.text)
-      buff = ""
-      usrname = ""
-      if uid then
-        buff = $vk.messages_getHistory(:user_id => uid)
-        usrname = $vk.user(uid)['first_name']
-      end
-      buff_temp = "Total: " + buff.shift.to_s + "\n\n"
-      buff.each do |msg|
-        if msg['out'] == 1 then
-          who = "Me:\n"
-        else
-          who = "#{usrname}:\n"
-        end
-        attach = ""
-        if msg['attachment'] then
-          attach = "(attachment)\n"
-        end
-        body = msg['body']
-        body += "\n" unless body.empty?
-        buff_temp += who + body + attach + "\n"
-      end
-      history.buffer.text = buff_temp
-      history.buffer.text = "(no messages yet)" if buff.to_s == "[0]"
+      history.buffer.text = refresh_history(uid) unless uid.nil?
+      history.buffer.text = '(no messages)' if uid.nil?
     }
   }
   button
@@ -117,6 +144,7 @@ end
 
 window = Gtk::Window.new
 window.set_title  "Offline Messenger"
+window.set_size_request(420, 500)
 window.border_width = 10
 window.signal_connect('delete_event') { Gtk.main_quit }
 
@@ -127,7 +155,6 @@ user.completion = completion user
 msg = Gtk::Entry.new
 mainbox.pack_start(make_box("User:", user), false, false, 3)
 mainbox.pack_start(make_box("Message:", msg), false, false, 3)
-mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
 
 history = Gtk::TextView.new
 history.left_margin = 10
@@ -135,9 +162,10 @@ history.editable = false
 history.wrap_mode = Gtk::TextTag::WRAP_WORD
 
 buttonsbox = Gtk::HBox.new(false, 0)
-buttonsbox.pack_start(make_send_button("Send message", user, msg), false, false, 3)
+buttonsbox.pack_start(make_send_button("Send message", user, msg, history), false, false, 3)
 buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
 mainbox.pack_start(buttonsbox, false, false, 5)
+mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
 mainbox.pack_start(scrolled_win(history), true, true, 5)
 
 window.add(mainbox)
