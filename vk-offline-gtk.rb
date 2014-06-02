@@ -9,6 +9,7 @@ def add_to_list friends
   online = friends.select{|u| u['online'] == 1}.count
   $users += friends.map{|u| "#{u['first_name']} #{u['last_name']} <id#{u['uid']}>"}
   $users += friends.map{|u| "#{u['last_name']} #{u['first_name']} <id#{u['uid']}>"}
+  $users += friends.map{|u| "#{u['uid']} (#{u['first_name']} #{u['last_name']})"}
   $online += online
   puts "#{friends.count} friends added, online: #{online}"
 end
@@ -38,6 +39,8 @@ def parse_uid username
     u[2]
   elsif u = username.match(/\<(id)?(\d+)\>$/) then
     u[2]
+  elsif u = username.match(/^(\d+)/) then
+    u[1]
   else
     nil     
   end
@@ -132,6 +135,18 @@ def refresh_history uid
   return buff_temp
 end
 
+def refresh_new_msgs uid
+  buff = $vk.messages_get(:filters => 1)
+  ans = buff.shift
+  buff_temp = ""
+  buff.each do |msg|
+    buff_temp += format_message(msg, msg['uid'])
+  end
+  buff_temp = "(no messages yet)" if buff.empty?
+  buff_temp = "(check user id)" if ans == -1
+  return buff_temp
+end
+
 def make_history_button text, user, history
   button = Gtk::Button.new(text)
   button.signal_connect("clicked") {
@@ -145,10 +160,37 @@ def make_history_button text, user, history
   button
 end
 
+def make_new_msgs_button text, user, history
+  user.text = ""
+  button = Gtk::Button.new(text)
+  button.xalign=1.0
+  button.signal_connect("clicked") {
+    history.buffer.text = "getting..."
+    Thread.new {
+      uid = parse_uid(user.text)
+      history.buffer.text = refresh_new_msgs(uid)
+    }
+  }
+  button
+end
+
 def get_buttons user, msg, history
+  buttonsbox = Gtk::HBox.new(true, 0)
+  buttonsbox.pack_start(get_buttons1(user, msg, history), false, false, 3)
+  buttonsbox.pack_start(get_buttons2(user, msg, history), false, false, 3)
+  buttonsbox
+end
+
+def get_buttons1 user, msg, history
+  buttonsbox = Gtk::HBox.new(true, 0)
+  buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
+  buttonsbox.pack_start(make_new_msgs_button("Show new", user, history), false, false, 3)
+  buttonsbox
+end
+
+def get_buttons2 user, msg, history
   buttonsbox = Gtk::HBox.new(false, 0)
   buttonsbox.pack_start(make_send_button("Send message", user, msg, history), false, false, 3)
-  buttonsbox.pack_start(make_history_button("Show history", user, history), false, false, 3)
   buttonsbox
 end
 
