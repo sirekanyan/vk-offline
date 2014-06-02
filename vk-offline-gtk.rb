@@ -1,9 +1,29 @@
 #!/usr/bin/env ruby
 require 'gtk2'
+Dir.chdir File.expand_path File.dirname($0)
 require 'vk-ruby'
 
-$users = File.read('friends.txt').split("\n")
-$users += File.read('friends_reverse.txt').split("\n")
+$vk = Vkontakte.new
+
+def add_to_list friends
+  online = friends.select{|u| u['online'] == 1}.count
+  $users += friends.map{|u| "#{u['first_name']} #{u['last_name']} <id#{u['uid']}>"}
+  $users += friends.map{|u| "#{u['last_name']} #{u['first_name']} <id#{u['uid']}>"}
+  $online += online
+  puts "#{friends.count} friends added, online: #{online}"
+end
+
+$users = []
+$online = 0
+
+add_to_list($vk.friends_get(fields: 'uid', order: 'hints', fields: 'online'))
+
+uids = File.read('friends.txt').split("\n")
+uids.each_slice(250) do |i|
+  add_to_list($vk.users_get(user_ids: i.join(','), fields: 'online'))
+end
+
+$users.uniq!
 
 $labels = {:user => "User:", :msg => "Message:"}
 $labels_size = $labels.map{|k,v| v.length}.max
@@ -17,6 +37,7 @@ def parse_uid username
 end
 
 def make_box text_label, entity
+  entity.width_chars = 30
   label = Gtk::Label.new(text_label)
   label.width_chars = $labels_size
   label.set_alignment(0, 0.5)
@@ -58,8 +79,6 @@ def make_history_button text, user
   }
   button
 end
-
-$vk = Vkontakte.new
 
 window = Gtk::Window.new
 window.set_title  "Send message"
