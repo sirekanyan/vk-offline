@@ -106,6 +106,7 @@ def format_message msg, usrname
   end
   body = msg['body']
   body += "\n" unless body.empty?
+  body += msg.to_s + "\n" if body.empty?
   return who + body + attach + "\n"
 end
 
@@ -173,7 +174,6 @@ def get_mainbox
   msg = Gtk::Entry.new
   mainbox.pack_start(make_box("User:", user), false, false, 3)
   mainbox.pack_start(make_box("Message:", msg), false, false, 3)
-
   history = get_history_textview(user)
   mainbox.pack_start(get_buttons(user, msg, history), false, false, 5)
   mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
