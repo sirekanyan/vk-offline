@@ -1,5 +1,4 @@
 #!/usr/bin/env ruby
-require_relative 'model/vk-type.rb'
 require 'gtk2'
 Dir.chdir File.expand_path File.dirname($0)
 require 'vk-ruby'
@@ -154,11 +153,11 @@ def f_attach a
 end
 
 def f_message msg, usrname, online: false
-  m = msg.to_obj
-  unread = m.read_state == 0 ? "[unread] " : ""
-  online = online && m.out != 1 ? "[online] " : ""
-  who = m.out == 1 ? "Me" : usrname
-  return "#{online}#{unread}#{who} (#{f_date m.date}):\n#{f_body m.body}#{f_attach m.attachments}\n"
+  unread = msg['read_state'] == 0 ? "[unread] " : ""
+  online = online && msg['out'] != 1 ? "[online] " : ""
+  who = msg['out'] == 1 ? "Me" : usrname
+  attach = f_attach msg['attachments']
+  return "#{online}#{unread}#{who} (#{f_date msg['date']}):\n#{f_body msg['body']}#{attach}\n"
 end
 
 def refresh_history uid
