@@ -166,7 +166,14 @@ def f_message msg, usrname, online: false
   online = online && msg['out'] != 1 ? "[online] " : ""
   who = msg['out'] == 1 ? "Me" : usrname
   attach = f_attach msg['attachments']
-  return "#{online}#{unread}#{who} (#{f_date msg['date']}):\n#{f_body msg['body']}#{attach}\n"
+  fwds = msg['fwd_messages']
+  fwd = ''
+  if !fwds.nil? then
+    fwds.each do |f| 
+      fwd += f_message( f, "fwd: #{f['uid']}" )
+    end
+  end
+  return "#{online}#{unread}#{who} (#{f_date msg['date']}):\n#{f_body msg['body']}#{attach}#{fwd}"
 end
 
 def refresh_history uid
@@ -186,7 +193,7 @@ def refresh_history uid
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    buff_temp += f_message(msg, usrname, online: online)
+    buff_temp += f_message(msg, usrname, online: online) + "\n"
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
@@ -198,7 +205,7 @@ def refresh_new_msgs uid
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    buff_temp += f_message(msg, "<id#{msg['uid']}>")
+    buff_temp += f_message(msg, msg['uid']) + "\n"
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
