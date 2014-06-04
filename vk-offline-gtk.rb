@@ -7,14 +7,21 @@ $vk = Vkontakte.new
 
 def add_to_list friends
   online = friends.select{|u| u['online'] == 1}.count
-  $users += friends.map{|u| "#{u['first_name']} #{u['last_name']} <id#{u['uid']}>"}
-  $users += friends.map{|u| "#{u['last_name']} #{u['first_name']} <id#{u['uid']}>"}
-  $users += friends.map{|u| "#{u['uid']} (#{u['first_name']} #{u['last_name']})"}
+  friends.each do |u|
+    key = u['uid']
+    first = u['first_name'] + ' ' + u['last_name']
+    last = u['last_name'] + ' ' + u['first_name']
+    if $users.has_key? key then
+      $users[key] += [first, last]
+    else
+      $users[key] = [first, last]
+    end
+  end
   $online += online
   puts "#{friends.count} friends added, online: #{online}"
 end
 
-$users = []
+$users = {}
 $online = 0
 
 add_to_list($vk.friends_get(fields: 'uid', order: 'hints', fields: 'online'))
@@ -30,8 +37,6 @@ else
   puts '| You may specify more users with friends.txt file'
   puts '| Just create friends.txt file with list of user ids'
 end
-
-$users.uniq!
 
 $labels = {:user => "User:", :msg => "Message:"}
 $labels_size = $labels.map{|k,v| v.length}.max
@@ -62,9 +67,13 @@ end
 def get_user_with_completion user
   users = Gtk::EntryCompletion.new
   model = Gtk::ListStore.new(String)
-  $users.each do |v|
+  $users.each do |k, names|
     iter = model.append
-    iter[0] = v
+    iter[0] = "#{k} (#{names[0]})"
+    names.each do |v|
+      iter = model.append
+      iter[0] = "#{v} <id#{k}>"
+    end
   end
   users.model = model
   users.text_column = 0
@@ -185,12 +194,11 @@ def refresh_history uid
 end
 
 def refresh_new_msgs uid
-  buff = $vk.messages_get(:filters => 1)
+  buff = $vk.messages_get()
   ans = buff.shift
   buff_temp = ""
   buff.each do |msg|
-    user = $vk.user( msg['uid'] )
-    buff_temp += f_message(msg, user['first_name'] + " " + user['last_name'])
+    buff_temp += f_message(msg, "<id#{msg['uid']}>")
   end
   buff_temp = "(no messages yet)" if buff.empty?
   buff_temp = "(check user id)" if ans == -1
@@ -279,4 +287,31 @@ window.border_width = 10
 window.signal_connect('delete_event') { Gtk.main_quit }
 window.add(get_mainbox)
 window.show_all
+
+icon = Gtk::StatusIcon.new
+icon.pixbuf = Gdk::Pixbuf.new('vk.ico')
+
+icon.signal_connect('activate'){ |icon| icon.blinking = false }
+
+menu = Gtk::Menu.new
+quit = Gtk::ImageMenuItem.new(Gtk::Stock::QUIT)
+
+quit.signal_connect('activate'){ Gtk.main_quit }
+menu.append(quit)
+menu.show_all
+
+icon.signal_connect('popup-menu') do |icon, button, time|
+  menu.popup(nil, nil, button, time)
+end
+
+Thread.new {
+  while(true) do
+    count = $vk.messages_get(:filters => 1).shift
+    if count != 0 then
+      icon.blinking = true
+    end
+    sleep 5
+  end
+}
+
 Gtk.main
