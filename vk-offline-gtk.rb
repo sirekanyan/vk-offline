@@ -291,12 +291,26 @@ window.show_all
 icon = Gtk::StatusIcon.new
 icon.pixbuf = Gdk::Pixbuf.new('vk.ico')
 
-icon.signal_connect('activate'){ |icon| icon.blinking = false }
+icon.signal_connect('activate') do |icon|
+  icon.blinking = false
+  msgs = $vk.messages_get :filters => 1
+  msgs.shift
+  $max_id = msgs.map{|m| m['mid']}.max
+end
 
 menu = Gtk::Menu.new
 quit = Gtk::ImageMenuItem.new(Gtk::Stock::QUIT)
-
 quit.signal_connect('activate'){ Gtk.main_quit }
+mark_as_read = Gtk::ImageMenuItem.new("Mark all as read")
+mark_as_read.signal_connect('activate') do
+  icon.blinking = false
+  msgs = $vk.messages_get :filters => 1
+  msgs.shift
+  mids = msgs.map{|m| m['mid']}.join(',')
+  sleep 0.3
+  $vk.messages_markAsRead :message_ids => mids  
+end
+menu.append(mark_as_read)
 menu.append(quit)
 menu.show_all
 
@@ -304,10 +318,20 @@ icon.signal_connect('popup-menu') do |icon, button, time|
   menu.popup(nil, nil, button, time)
 end
 
+$max_id = 0
+
 Thread.new {
   while(true) do
-    count = $vk.messages_get(:filters => 1).shift
-    icon.blinking = count != 0
+    new_msgs = $vk.messages_get(:filters => 1)
+    count = new_msgs.shift
+    if count > 0 then
+      max = new_msgs.map{|m| m['mid']}.max
+      print "max: #{$max_id}, "
+      puts "current: #{max}"
+      if max > $max_id then
+        icon.blinking = count != 0
+      end
+    end
     sleep 15
   end
 }
