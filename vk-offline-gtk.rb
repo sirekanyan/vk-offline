@@ -307,10 +307,8 @@ end
 Thread.new {
   while(true) do
     count = $vk.messages_get(:filters => 1).shift
-    if count != 0 then
-      icon.blinking = true
-    end
-    sleep 5
+    icon.blinking = count != 0
+    sleep 15
   end
 }
 
