@@ -6,7 +6,9 @@ $templates = {
     video: '<%= title %> => https://vk.com/video<%= owner_id %>_<%= vid %>',
     audio: '<%= artist %> -- <%= title %> => <%= url.partition(\'?\').first %>',
     doc:   '<%= title %> => https://vk.com/doc<%= owner_id %>_<%= did %>',
-    wall:  'https://vk.com/wall<%= to_id %>_<%= id %>'
+    wall:  'https://vk.com/wall<%= to_id %>_<%= id %>',
+    headers: '<%= online %><%= unread %><%= who %> (<%= date %>):',
+    message: '<%= body %><%= attach %><%= fwd %>'
 }
 
 class Replacer < OpenStruct
@@ -27,7 +29,7 @@ class VkAttachment
   end
 
   def to_s
-    ":#{@type} => #{render_body}"
+    "[#{@type}] => #{render_body}"
   end
 end
 
@@ -63,19 +65,35 @@ class Fixnum
   end
 end
 
-class Hash
-  def to_vk_message(username, online: false)
-    unread = self['read_state'] == 0 ? '[unread] ' : ''
-    online = online && self['out'] != 1 ? '[online] ' : ''
-    who = self['out'] == 1 ? 'Me' : username
-    attach = VkAttachments.new self['attachments']
-    forwards = self['fwd_messages']
+class VkHelper
+  def VkHelper.forwards(content)
     fwd = ''
-    unless forwards.nil?
-      forwards.each do |f|
-        fwd += f.to_vk_message("fwd: #{f['uid']}")
+    unless content.nil?
+      content.each do |f|
+        fwd += self.message(f, "fwd: #{f['uid']}")
       end
     end
-    "#{online}#{unread}#{who} (#{self['date'].to_vk_date}):\n#{self['body'].to_vk_body}#{attach}#{fwd}"
+    fwd
+  end
+
+  def VkHelper.headers(message, username, online)
+    Replacer.new(
+        unread: message['read_state'] == 0 ? '[unread] ' : '',
+        online: online && message['out'] != 1 ? '[online] ' : '',
+        who:    message['out'] == 1 ? 'Me' : username,
+        date:   message['date'].to_vk_date
+    ).render($templates[:headers])
+  end
+
+  def VkHelper.body(message)
+    Replacer.new(
+        body: message['body'].to_vk_body,
+        attach: VkAttachments.new(message['attachments']),
+        fwd: forwards(message['fwd_messages'])
+    ).render($templates[:message])
+  end
+
+  def VkHelper.message(message, username, online: false)
+    self.headers(message, username, online) + "\n" + self.body(message)
   end
 end

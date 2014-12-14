@@ -125,7 +125,7 @@ def refresh_history(uid)
   ans = buff.shift
   buff_temp = ''
   buff.each do |msg|
-    buff_temp += msg.to_vk_message(username, online: online) + "\n"
+    buff_temp += VkHelper.message(msg, username, online: online) + "\n"
   end
   buff_temp = '(no messages yet)' if buff.empty?
   buff_temp = '(check user id)' if ans == -1
@@ -137,7 +137,7 @@ def refresh_new_msgs(uid)
   ans = buff.shift
   buff_temp = ''
   buff.each do |msg|
-    buff_temp += msg.to_vk_message(msg['uid']) + "\n"
+    buff_temp += VkHelper.message(msg, msg['uid']) + "\n"
   end
   buff_temp = '(no messages yet)' if buff.empty?
   buff_temp = '(check user id)' if ans == -1
