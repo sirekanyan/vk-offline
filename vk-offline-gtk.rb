@@ -43,10 +43,8 @@ $labels = {:user => 'User:', :msg => 'Message:'}
 $labels_size = $labels.map { |_, v| v.length }.max
 
 def parse_uid(username)
-  if u = username.match(/^(id)?(\d+)$/)
-    u[2]
-  elsif u = username.match(/\<(id)?(\d+)\>$/)
-    u[2]
+  if u = username.match(/<id(\d+)>$/)
+    u[1]
   elsif u = username.match(/^(\d+)/)
     u[1]
   else
@@ -54,18 +52,25 @@ def parse_uid(username)
   end
 end
 
-def make_box(text_label, entity)
-  entity.width_chars = 40
-  label = Gtk::Label.new(text_label)
-  label.width_chars = $labels_size
-  label.set_alignment(0, 0.5)
-  hbox = Gtk::HBox.new(false, 5)
-  hbox.pack_start_defaults(label)
-  hbox.pack_start_defaults(entity)
-  hbox
+class Gtk::Widget
+  def self.create(*args)
+    yield(new(*args))
+  end
 end
 
-def get_user_with_completion user
+def make_box(text_label, entity)
+  Gtk::Label.create(text_label) do |label|
+    entity.width_chars = 40
+    label.width_chars = $labels_size
+    label.set_alignment(0, 0.5)
+    Gtk::HBox.create(false, 5) do |hbox|
+      hbox.pack_start_defaults(label)
+      hbox.pack_start_defaults(entity)
+    end
+  end
+end
+
+def get_user_with_completion(user)
   users = Gtk::EntryCompletion.new
   model = Gtk::ListStore.new(String)
   $users.each do |k, names|
@@ -82,30 +87,32 @@ def get_user_with_completion user
   user
 end
 
-def make_send_button text, user, msg, history
-  button = Gtk::Button.new(text)
-  button.signal_connect('clicked') {
-    uid = parse_uid(user.text)
-    unless uid.nil?
-      mid = $vk.messages_send(:user_id => uid, :message => msg.text)
-      usr = $vk.user(uid)['first_name']
-      puts "Message ##{mid} for #{usr} has been sent"
-      history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
-      Thread.new {
-        history.buffer.text = refresh_history(uid)
-      }
+def make_send_button(text, user, msg, history)
+  Gtk::Button.create(text) do |button|
+    button.signal_connect('clicked') do
+      uid = parse_uid(user.text)
+      unless uid.nil?
+        mid = $vk.messages_send(:user_id => uid, :message => msg.text)
+        usr = $vk.user(uid)['first_name']
+        puts "Message ##{mid} for #{usr} has been sent"
+        history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
+        Thread.new {
+          history.buffer.text = refresh_history(uid)
+        }
+      end
     end
-  }
-  button
+    return button
+  end
 end
 
 def scrolled_win(textview)
-  scrolled_win = Gtk::ScrolledWindow.new
-  scrolled_win.add(textview)
-  scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
-  vbox = Gtk::VBox.new(false, 5)
-  vbox.pack_start(scrolled_win, true, true, 0)
-  vbox
+  Gtk::ScrolledWindow.create do |scrolled_win|
+    scrolled_win.add(textview)
+    scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
+    Gtk::VBox.create(false, 5) do |vbox|
+      vbox.pack_start(scrolled_win, true, true, 0)
+    end
+  end
 end
 
 def refresh_history(uid)
@@ -145,19 +152,20 @@ def refresh_new_msgs(uid)
 end
 
 def make_history_button(text, user, history)
-  button = Gtk::Button.new(text)
-  button.signal_connect('clicked') {
-    history.buffer.text = 'getting...'
-    Thread.new {
-      uid = parse_uid(user.text)
-      history.buffer.text = refresh_history(uid) unless uid.nil?
-      history.buffer.text = '(no messages)' if uid.nil?
-    }
-  }
-  button
+  Gtk::Button.create(text) do |button|
+    button.signal_connect('clicked') do
+      history.buffer.text = 'getting...'
+      Thread.new do
+        uid = parse_uid(user.text)
+        history.buffer.text = refresh_history(uid) unless uid.nil?
+        history.buffer.text = '(no messages)' if uid.nil?
+      end
+    end
+    return button
+  end
 end
 
-def make_new_msgs_button text, user, history
+def make_new_messages_button(text, user, history)
   user.text = ''
   button = Gtk::Button.new(text)
   button.xalign=1.0
@@ -172,60 +180,64 @@ def make_new_msgs_button text, user, history
 end
 
 def get_buttons(user, msg, history)
-  buttonsbox = Gtk::HBox.new(true, 0)
-  buttonsbox.pack_start(get_buttons1(user, msg, history), false, false, 3)
-  buttonsbox.pack_start(get_buttons2(user, msg, history), false, false, 3)
-  buttonsbox
+  Gtk::HBox.create(true, 0) do |buttons|
+    buttons.pack_start(get_buttons_left(user, history), false, false, 3)
+    buttons.pack_start(get_buttons_right(user, msg, history), false, false, 3)
+  end
 end
 
-def get_buttons1(user, msg, history)
-  buttonsbox = Gtk::HBox.new(true, 0)
-  buttonsbox.pack_start(make_history_button('Show history', user, history), false, false, 3)
-  buttonsbox.pack_start(make_new_msgs_button('Show new', user, history), false, false, 3)
-  buttonsbox
+def get_buttons_left(user, history)
+  Gtk::HBox.create(true, 0) do |buttons|
+    buttons.pack_start(make_history_button('Show history', user, history), false, false, 3)
+    buttons.pack_start(make_new_messages_button('Show new', user, history), false, false, 3)
+  end
 end
 
-def get_buttons2(user, msg, history)
-  buttonsbox = Gtk::HBox.new(false, 0)
-  buttonsbox.pack_start(make_send_button('Send message', user, msg, history), false, false, 3)
-  buttonsbox
+def get_buttons_right(user, msg, history)
+  Gtk::HBox.create(true, 0) do |buttons|
+    buttons.pack_start(make_send_button('Send message', user, msg, history), false, false, 3)
+  end
 end
 
 def get_history_textview(user)
-  history = Gtk::TextView.new
-  user.signal_connect('focus_out_event') {
-    Thread.new {
-      uid = parse_uid(user.text)
-      history.buffer.text = refresh_history(uid) unless uid.nil?
-      history.buffer.text = '(no messages)' if uid.nil?
+  Gtk::TextView.create do |history|
+    user.signal_connect('focus_out_event') {
+      Thread.new {
+        uid = parse_uid(user.text)
+        history.buffer.text = refresh_history(uid) unless uid.nil?
+        history.buffer.text = '(no messages)' if uid.nil?
+      }
+      false
     }
-    false
-  }
-  history.left_margin = 10
-  history.editable = false
-  history.wrap_mode = Gtk::TextTag::WRAP_WORD
-  history
+    history.left_margin = 10
+    history.editable = false
+    history.wrap_mode = Gtk::TextTag::WRAP_WORD
+    return history
+  end
 end
 
 def get_mainbox
-  mainbox = Gtk::VBox.new(false, 0)
-  user = get_user_with_completion(Gtk::Entry.new)
-  msg = Gtk::Entry.new
-  mainbox.pack_start(make_box('User:', user), false, false, 3)
-  mainbox.pack_start(make_box('Message:', msg), false, false, 3)
-  history = get_history_textview(user)
-  mainbox.pack_start(get_buttons(user, msg, history), false, false, 5)
-  mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
-  mainbox.pack_start(scrolled_win(history), true, true, 5)
+  Gtk::VBox.create(false, 0) do |mainbox|
+    user = get_user_with_completion(Gtk::Entry.new)
+    msg = Gtk::Entry.new
+    mainbox.pack_start(make_box('User:', user), false, false, 3)
+    mainbox.pack_start(make_box('Message:', msg), false, false, 3)
+    history = get_history_textview(user)
+    mainbox.pack_start(get_buttons(user, msg, history), false, false, 5)
+    mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
+    mainbox.pack_start(scrolled_win(history), true, true, 5)
+    return mainbox
+  end
 end
 
-window = Gtk::Window.new
-window.set_title 'Offline Messenger'
-window.set_size_request(420, 500)
-window.border_width = 10
-window.signal_connect('delete_event') { Gtk.main_quit }
-window.add(get_mainbox)
-window.show_all
+Gtk::Window.create do |window|
+  window.set_title 'Offline Messenger'
+  window.set_size_request(420, 500)
+  window.border_width = 10
+  window.signal_connect('delete_event') { Gtk.main_quit }
+  window.add(get_mainbox)
+  window.show_all
+end
 
 icon = Gtk::StatusIcon.new
 icon.pixbuf = Gdk::Pixbuf.new('vk.ico')
