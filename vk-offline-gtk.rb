@@ -2,7 +2,8 @@
 require 'gtk2'
 Dir.chdir File.expand_path File.dirname($0)
 require 'vk-ruby'
-require_relative 'vk-offline-helper.rb'
+require_relative 'lib/helper.rb'
+require_relative 'lib/widget.rb'
 
 $vk = Vkontakte.new
 
@@ -49,12 +50,6 @@ def parse_uid(username)
     u[1]
   else
     nil
-  end
-end
-
-class Gtk::Widget
-  def self.create(*args)
-    yield(new(*args))
   end
 end
 
@@ -177,26 +172,6 @@ def make_new_messages_button(text, user, history)
     }
   }
   button
-end
-
-def get_buttons(user, msg, history)
-  Gtk::HBox.create(true, 0) do |buttons|
-    buttons.pack_start(get_buttons_left(user, history), false, false, 3)
-    buttons.pack_start(get_buttons_right(user, msg, history), false, false, 3)
-  end
-end
-
-def get_buttons_left(user, history)
-  Gtk::HBox.create(true, 0) do |buttons|
-    buttons.pack_start(make_history_button('Show history', user, history), false, false, 3)
-    buttons.pack_start(make_new_messages_button('Show new', user, history), false, false, 3)
-  end
-end
-
-def get_buttons_right(user, msg, history)
-  Gtk::HBox.create(true, 0) do |buttons|
-    buttons.pack_start(make_send_button('Send message', user, msg, history), false, false, 3)
-  end
 end
 
 def get_history_textview(user)
