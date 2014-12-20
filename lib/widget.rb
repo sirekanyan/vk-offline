@@ -45,39 +45,33 @@ def main_buttons(user, msg, history)
 end
 
 def refresh_history(uid)
-  buff = ''
+  messages = []
   username = ''
   online = false
   if uid
-    user = $vk.users_get(:user_id => uid, :fields => 'online').first
-    if user == -1
-      buff = [-1]
-    else
-      username = user['first_name']
-      online = user['online'] == 1
-      buff = $vk.messages_getHistory(:user_id => uid)
+    users = $vk.users([uid], :fields => 'online')
+    if users == -1
+      return '(check user id)'
     end
+    user = users.first
+    username = user['first_name']
+    online = user['online'] == 1
+    messages = $vk.messages_getHistory(:user_id => uid)
   end
-  ans = buff.shift
-  buff_temp = ''
-  buff.each do |msg|
-    buff_temp += VkHelper.message(msg, username, online: online) + "\n"
-  end
-  buff_temp = '(no messages yet)' if buff.empty?
-  buff_temp = '(check user id)' if ans == -1
-  buff_temp
+  refresh_messages(messages, username, online)
 end
 
-def refresh_new_msgs(uid)
-  buff = $vk.messages_get
-  ans = buff.shift
-  buff_temp = ''
-  buff.each do |msg|
-    buff_temp += VkHelper.message(msg, msg['uid']) + "\n"
+def refresh_messages(messages, username = nil, online = false)
+  return '(check user id)' if messages.shift == -1
+  out = ''
+  if messages.empty?
+    out += '(no messages yet)'
+  else
+    messages.each do |msg|
+      out += VkHelper.message(msg, username, online) + "\n"
+    end
   end
-  buff_temp = '(no messages yet)' if buff.empty?
-  buff_temp = '(check user id)' if ans == -1
-  buff_temp
+  out
 end
 
 def history_button(text, user, history)
@@ -102,7 +96,7 @@ def new_messages_button(text, user, history)
       history.buffer.text = 'getting...'
       Thread.new do
         uid = parse_uid(user.text)
-        history.buffer.text = refresh_new_msgs(uid)
+        history.buffer.text = refresh_messages($vk.messages_get)
       end
     end
     return button

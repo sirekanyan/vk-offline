@@ -93,7 +93,8 @@ class VkHelper
     ).render($templates[:message])
   end
 
-  def VkHelper.message(message, username, online: false)
+  def VkHelper.message(message, username, online = false)
+    username = message['uid'] if username.nil?
     self.headers(message, username, online) + "\n" + self.body(message)
   end
 end
