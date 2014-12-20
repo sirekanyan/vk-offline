@@ -40,9 +40,6 @@ else
   puts '| Just create friends.txt file with list of user ids'
 end
 
-$labels = {:user => 'User:', :msg => 'Message:'}
-$labels_size = $labels.map { |_, v| v.length }.max
-
 def parse_uid(username)
   if u = username.match(/<id(\d+)>$/)
     u[1]
@@ -69,7 +66,7 @@ def user_completion
   users
 end
 
-def make_send_button(text, user, msg, history)
+def send_button(text, user, msg, history)
   Gtk::Button.create(text) do |button|
     button.signal_connect('clicked') do
       uid = parse_uid(user.text)
@@ -78,9 +75,9 @@ def make_send_button(text, user, msg, history)
         usr = $vk.user(uid)['first_name']
         puts "Message ##{mid} for #{usr} has been sent"
         history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
-        Thread.new {
+        Thread.new do
           history.buffer.text = refresh_history(uid)
-        }
+        end
       end
     end
     return button
@@ -133,36 +130,7 @@ def refresh_new_msgs(uid)
   buff_temp
 end
 
-def make_history_button(text, user, history)
-  Gtk::Button.create(text) do |button|
-    button.signal_connect('clicked') do
-      history.buffer.text = 'getting...'
-      Thread.new do
-        uid = parse_uid(user.text)
-        history.buffer.text = refresh_history(uid) unless uid.nil?
-        history.buffer.text = '(no messages)' if uid.nil?
-      end
-    end
-    return button
-  end
-end
-
-def make_new_messages_button(text, user, history)
-  user.text = ''
-  Gtk::Button.create(text) do |button|
-    button.xalign=1.0
-    button.signal_connect('clicked') do
-      history.buffer.text = 'getting...'
-      Thread.new do
-        uid = parse_uid(user.text)
-        history.buffer.text = refresh_new_msgs(uid)
-      end
-    end
-    return button
-  end
-end
-
-def get_history_textview(user)
+def history_textview(user)
   Gtk::TextView.create do |history|
     user.signal_connect('focus_out_event') {
       Thread.new {
@@ -184,13 +152,12 @@ def get_mainbox
     user = Gtk::Entry.new
     msg = Gtk::Entry.new
     user.completion = user_completion
-    mainbox.append(simple_box('User:', user))
-    mainbox.append(simple_box('Message:', msg))
-    history = get_history_textview(user)
+    mainbox.append(simple_box(:user, user))
+    mainbox.append(simple_box(:message, msg))
+    history = history_textview(user)
     mainbox.append(main_buttons(user, msg, history))
     mainbox.append(Gtk::HSeparator.new, fill: true)
     mainbox.append(scrolled_win(history), expand: true, fill: true)
-    return mainbox
   end
 end
 
@@ -235,7 +202,7 @@ end
 
 $max_id = 0
 
-Thread.new {
+Thread.new do
   while true do
     new_messages = $vk.messages_get(:filters => 1)
     count = new_messages.shift
@@ -249,6 +216,6 @@ Thread.new {
     end
     sleep 15
   end
-}
+end
 
 Gtk.main
