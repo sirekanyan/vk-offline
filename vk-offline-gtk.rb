@@ -147,17 +147,17 @@ def history_textview(user)
   end
 end
 
-def get_mainbox
-  Gtk::VBox.create(false, 0) do |mainbox|
+def mainbox
+  Gtk::VBox.create(false, 0) do |main|
     user = Gtk::Entry.new
     msg = Gtk::Entry.new
     user.completion = user_completion
-    mainbox.append(simple_box(:user, user))
-    mainbox.append(simple_box(:message, msg))
+    main.append(simple_box(:user, user))
+    main.append(simple_box(:message, msg))
     history = history_textview(user)
-    mainbox.append(main_buttons(user, msg, history))
-    mainbox.append(Gtk::HSeparator.new, fill: true)
-    mainbox.append(scrolled_win(history), expand: true, fill: true)
+    main.append(main_buttons(user, msg, history))
+    main.append(Gtk::HSeparator.new, fill: true)
+    main.append(scrolled_win(history), expand: true, fill: true)
   end
 end
 
@@ -166,56 +166,10 @@ Gtk::Window.create do |win|
   win.set_size_request(420, 500)
   win.border_width = 10
   win.signal_connect('delete_event') { Gtk.main_quit }
-  win.add(get_mainbox)
+  win.add(mainbox)
   win.show_all
 end
 
-icon = Gtk::StatusIcon.new
-icon.pixbuf = Gdk::Pixbuf.new('vk.ico')
-
-icon.signal_connect('activate') do |ic|
-  ic.blinking = false
-  messages = $vk.messages_get :filters => 1
-  messages.shift
-  $max_id = messages.map { |m| m['mid'] }.max
-end
-
-menu = Gtk::Menu.new
-quit = Gtk::ImageMenuItem.new(Gtk::Stock::QUIT)
-quit.signal_connect('activate') { Gtk.main_quit }
-mark_as_read = Gtk::ImageMenuItem.new('Mark all as read')
-mark_as_read.signal_connect('activate') do
-  icon.blinking = false
-  messages = $vk.messages_get :filters => 1
-  messages.shift
-  m_ids = messages.map { |m| m['mid'] }.join(',')
-  sleep 0.3
-  $vk.messages_markAsRead :message_ids => m_ids
-end
-menu.append(mark_as_read)
-menu.append(quit)
-menu.show_all
-
-icon.signal_connect('popup-menu') do |_, button, time|
-  menu.popup(nil, nil, button, time)
-end
-
-$max_id = 0
-
-Thread.new do
-  while true do
-    new_messages = $vk.messages_get(:filters => 1)
-    count = new_messages.shift
-    if count > 0
-      max = new_messages.map { |m| m['mid'] }.max
-      print "max: #{$max_id}, "
-      puts "current: #{max}"
-      if max > $max_id
-        icon.blinking = count != 0
-      end
-    end
-    sleep 15
-  end
-end
+require_relative 'lib/icon'
 
 Gtk.main
