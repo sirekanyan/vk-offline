@@ -53,19 +53,7 @@ def parse_uid(username)
   end
 end
 
-def make_box(text_label, entity)
-  Gtk::Label.create(text_label) do |label|
-    entity.width_chars = 40
-    label.width_chars = $labels_size
-    label.set_alignment(0, 0.5)
-    Gtk::HBox.create(false, 5) do |hbox|
-      hbox.pack_start_defaults(label)
-      hbox.pack_start_defaults(entity)
-    end
-  end
-end
-
-def get_user_with_completion(user)
+def user_completion
   users = Gtk::EntryCompletion.new
   model = Gtk::ListStore.new(String)
   $users.each do |k, names|
@@ -78,8 +66,7 @@ def get_user_with_completion(user)
   end
   users.model = model
   users.text_column = 0
-  user.completion = users
-  user
+  users
 end
 
 def make_send_button(text, user, msg, history)
@@ -105,7 +92,7 @@ def scrolled_win(textview)
     scrolled_win.add(textview)
     scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
     Gtk::VBox.create(false, 5) do |vbox|
-      vbox.pack_start(scrolled_win, true, true, 0)
+      vbox.pack_start_defaults(scrolled_win)
     end
   end
 end
@@ -162,16 +149,17 @@ end
 
 def make_new_messages_button(text, user, history)
   user.text = ''
-  button = Gtk::Button.new(text)
-  button.xalign=1.0
-  button.signal_connect('clicked') {
-    history.buffer.text = 'getting...'
-    Thread.new {
-      uid = parse_uid(user.text)
-      history.buffer.text = refresh_new_msgs(uid)
-    }
-  }
-  button
+  Gtk::Button.create(text) do |button|
+    button.xalign=1.0
+    button.signal_connect('clicked') do
+      history.buffer.text = 'getting...'
+      Thread.new do
+        uid = parse_uid(user.text)
+        history.buffer.text = refresh_new_msgs(uid)
+      end
+    end
+    return button
+  end
 end
 
 def get_history_textview(user)
@@ -193,25 +181,26 @@ end
 
 def get_mainbox
   Gtk::VBox.create(false, 0) do |mainbox|
-    user = get_user_with_completion(Gtk::Entry.new)
+    user = Gtk::Entry.new
     msg = Gtk::Entry.new
-    mainbox.pack_start(make_box('User:', user), false, false, 3)
-    mainbox.pack_start(make_box('Message:', msg), false, false, 3)
+    user.completion = user_completion
+    mainbox.append(simple_box('User:', user))
+    mainbox.append(simple_box('Message:', msg))
     history = get_history_textview(user)
-    mainbox.pack_start(get_buttons(user, msg, history), false, false, 5)
-    mainbox.pack_start(Gtk::HSeparator.new, false, true, 3)
-    mainbox.pack_start(scrolled_win(history), true, true, 5)
+    mainbox.append(main_buttons(user, msg, history))
+    mainbox.append(Gtk::HSeparator.new, fill: true)
+    mainbox.append(scrolled_win(history), expand: true, fill: true)
     return mainbox
   end
 end
 
-Gtk::Window.create do |window|
-  window.set_title 'Offline Messenger'
-  window.set_size_request(420, 500)
-  window.border_width = 10
-  window.signal_connect('delete_event') { Gtk.main_quit }
-  window.add(get_mainbox)
-  window.show_all
+Gtk::Window.create do |win|
+  win.set_title 'Offline Messenger'
+  win.set_size_request(420, 500)
+  win.border_width = 10
+  win.signal_connect('delete_event') { Gtk.main_quit }
+  win.add(get_mainbox)
+  win.show_all
 end
 
 icon = Gtk::StatusIcon.new
@@ -232,9 +221,9 @@ mark_as_read.signal_connect('activate') do
   icon.blinking = false
   messages = $vk.messages_get :filters => 1
   messages.shift
-  mids = messages.map { |m| m['mid'] }.join(',')
+  m_ids = messages.map { |m| m['mid'] }.join(',')
   sleep 0.3
-  $vk.messages_markAsRead :message_ids => mids
+  $vk.messages_markAsRead :message_ids => m_ids
 end
 menu.append(mark_as_read)
 menu.append(quit)
@@ -248,10 +237,10 @@ $max_id = 0
 
 Thread.new {
   while true do
-    new_msgs = $vk.messages_get(:filters => 1)
-    count = new_msgs.shift
+    new_messages = $vk.messages_get(:filters => 1)
+    count = new_messages.shift
     if count > 0
-      max = new_msgs.map { |m| m['mid'] }.max
+      max = new_messages.map { |m| m['mid'] }.max
       print "max: #{$max_id}, "
       puts "current: #{max}"
       if max > $max_id
