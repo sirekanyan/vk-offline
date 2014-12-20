@@ -15,6 +15,16 @@ $labels = {
 
 $labels_size = $labels.map { |_, v| v.length }.max
 
+def parse_uid(username)
+  if u = username.match(/<id(\d+)>$/)
+    u[1]
+  elsif u = username.match(/^(\d+)/)
+    u[1]
+  else
+    nil
+  end
+end
+
 def simple_box(text_label, entity)
   Gtk::Label.create($labels[text_label]) do |label|
     entity.width_chars = 40
@@ -32,6 +42,42 @@ def main_buttons(user, msg, history)
     buttons.append(left_buttons(user, history))
     buttons.append(right_buttons(user, msg, history))
   end
+end
+
+def refresh_history(uid)
+  buff = ''
+  username = ''
+  online = false
+  if uid
+    user = $vk.users_get(:user_id => uid, :fields => 'online').first
+    if user == -1
+      buff = [-1]
+    else
+      username = user['first_name']
+      online = user['online'] == 1
+      buff = $vk.messages_getHistory(:user_id => uid)
+    end
+  end
+  ans = buff.shift
+  buff_temp = ''
+  buff.each do |msg|
+    buff_temp += VkHelper.message(msg, username, online: online) + "\n"
+  end
+  buff_temp = '(no messages yet)' if buff.empty?
+  buff_temp = '(check user id)' if ans == -1
+  buff_temp
+end
+
+def refresh_new_msgs(uid)
+  buff = $vk.messages_get
+  ans = buff.shift
+  buff_temp = ''
+  buff.each do |msg|
+    buff_temp += VkHelper.message(msg, msg['uid']) + "\n"
+  end
+  buff_temp = '(no messages yet)' if buff.empty?
+  buff_temp = '(check user id)' if ans == -1
+  buff_temp
 end
 
 def history_button(text, user, history)
