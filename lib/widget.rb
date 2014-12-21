@@ -1,7 +1,9 @@
-require 'gtk2'
+require 'vk-ruby'
 require_relative 'icon'
+require_relative 'friends'
+require_relative 'helper'
 
-class Gtk::Widget
+class GLib::Object
   def self.create(*args)
     yield(new(*args))
   end
@@ -18,10 +20,12 @@ $labels = {
 
 $labels_size = $labels.map { |_, v| v.length }.max
 
-class VkontakteWidget
-  def initialize(app)
-    @vk = app.vk
-    @users = app.users
+class Widget
+  def initialize
+    @vk = Vkontakte.new
+    @friends= Friends.new(@vk)
+    @icon = Icon.new(@vk)
+    @icon.start
   end
 
   def parse_uid(username)
@@ -40,11 +44,30 @@ class VkontakteWidget
     Gtk::Label.create($labels[text_label]) do |label|
       entity.width_chars = 40
       label.width_chars = $labels_size
-      label.set_alignment(0, 0.5)
+      label.xalign = 0
+      label.yalign = 0.5
+      if text_label == :user
+        online_status(entity, label)
+      end
       Gtk::HBox.create(false, 5) do |hbox|
         hbox.pack_start_defaults(label)
         hbox.pack_start_defaults(entity)
       end
+    end
+  end
+
+  def online_status(user, label)
+    user.signal_connect('focus_out_event') do
+      Thread.new do
+        begin
+          usr = @vk.user(parse_uid(user.text), :fields => 'online')
+          online = usr['online'] == 1
+          label.markup = online ? "<span foreground='green'>#{label.text}</span>" : label.text
+        rescue Exception => e
+          puts e
+        end
+      end
+      false
     end
   end
 
@@ -130,7 +153,7 @@ class VkontakteWidget
             history.buffer.text = refresh_history(user.text)
           end
         rescue Exception => e
-          history.buffer.text = "#{e.message}"
+          history.buffer.text = "(#{e.message})"
         end
       end
       return button
@@ -149,23 +172,23 @@ class VkontakteWidget
 
   def history_textview(user)
     Gtk::TextView.create do |history|
-      user.signal_connect('focus_out_event') {
-        Thread.new {
+      user.signal_connect('focus_out_event') do
+        Thread.new do
           history.buffer.text = refresh_history(user.text)
-        }
+        end
         false
-      }
+      end
       history.left_margin = 10
       history.editable = false
       history.wrap_mode = Gtk::TextTag::WRAP_WORD
-      return history
+      history
     end
   end
 
   def user_completion
     users = Gtk::EntryCompletion.new
     model = Gtk::ListStore.new(String)
-    @users.each do |k, names|
+    @friends.each do |k, names|
       iter = model.append
       iter[0] = "#{k} (#{names[0]})"
       names.each do |v|
@@ -190,19 +213,5 @@ class VkontakteWidget
       main.append(Gtk::HSeparator.new, fill: true)
       main.append(scrolled_win(history), expand: true, fill: true)
     end
-  end
-
-  def start
-    Gtk::Window.create do |win|
-      win.set_title 'Offline Messenger'
-      win.set_size_request(420, 500)
-      win.border_width = 10
-      win.signal_connect('delete_event') { Gtk.main_quit }
-      win.add(mainbox)
-      win.show_all
-    end
-
-    VkontakteIcon.new(@vk).start
-    Gtk.main
   end
 end

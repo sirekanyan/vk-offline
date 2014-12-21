@@ -1,20 +1,18 @@
 #!/usr/bin/env ruby
-Dir.chdir File.expand_path File.dirname($0)
-require_relative 'lib/helper'
+require 'gtk2'
 require_relative 'lib/widget'
-require_relative 'lib/vk-offline'
 
-application = VkontakteOffline.new
-
-application.load_friends(fields: 'uid', order: 'hints')
-
-if File.exists?('friends.txt')
-  File.read('friends.txt').split("\n").each_slice(250) do |i|
-    application.load_users(user_ids: i.join(','))
+class VkontakteOffline < Gtk::Window
+  def initialize
+    super
+    set_title 'Offline Messenger'
+    set_size_request 420, 500
+    set_border_width 10
+    signal_connect('delete_event') { Gtk.main_quit }
+    add Widget.new.mainbox
+    show_all
   end
-else
-  puts '| You may specify more users with friends.txt file'
-  puts '| Just create friends.txt file with list of user ids'
 end
 
-VkontakteWidget.new(application).start
+VkontakteOffline.new
+Gtk.main
