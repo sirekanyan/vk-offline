@@ -7,7 +7,7 @@ $templates = {
     audio: '<%= artist %> -- <%= title %> => <%= url.partition(\'?\').first %>',
     doc:   '<%= title %> => https://vk.com/doc<%= owner_id %>_<%= did %>',
     wall:  'https://vk.com/wall<%= to_id %>_<%= id %>',
-    headers: '<%= online %><%= unread %><%= who %> (<%= date %>):',
+    headers: '<%= unread %><%= who %> (<%= date %>):',
     message: "<%= body %><%= attach %><%= fwd %>\n"
 }
 
@@ -70,10 +70,9 @@ class VkHelper
     fwd
   end
 
-  def VkHelper.headers(message, username, online)
+  def VkHelper.headers(message, username)
     Replacer.new(
         unread: message['read_state'] == 0 ? '[unread] ' : '',
-        online: online && message['out'] != 1 ? '[online] ' : '',
         who:    message['out'] == 1 ? 'Me' : username,
         date:   message['date'].to_vk_date
     ).render($templates[:headers])
@@ -87,8 +86,8 @@ class VkHelper
     ).render($templates[:message])
   end
 
-  def VkHelper.message(message, username, online = false)
+  def VkHelper.message(message, username)
     username = message['uid'] if username.nil?
-    self.headers(message, username, online) + "\n" + self.body(message)
+    self.headers(message, username) + "\n" + self.body(message)
   end
 end

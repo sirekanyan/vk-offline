@@ -83,21 +83,19 @@ class Widget
       uid = parse_uid(user_text)
       messages = @vk.messages_getHistory(:user_id => uid)
       user = @vk.user(uid, :fields => 'online')
-      username = user['first_name']
-      online = user['online'] == 1
-      refresh_messages(messages, username, online)
+      refresh_messages(messages, user['first_name'])
     rescue Exception => e
       return "(#{e.message})"
     end
   end
 
-  def refresh_messages(messages, username = nil, online = false)
+  def refresh_messages(messages, username = nil)
     messages.shift
     if messages.empty?
       raise 'no messages yet'
     end
     messages.map do |msg|
-      VkHelper.message(msg, username, online)
+      VkHelper.message(msg, username)
     end.join()
   end
 
