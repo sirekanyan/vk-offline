@@ -8,7 +8,7 @@ $templates = {
     doc:   '<%= title %> => https://vk.com/doc<%= owner_id %>_<%= did %>',
     wall:  'https://vk.com/wall<%= to_id %>_<%= id %>',
     headers: '<%= online %><%= unread %><%= who %> (<%= date %>):',
-    message: '<%= body %><%= attach %><%= fwd %>'
+    message: "<%= body %><%= attach %><%= fwd %>\n"
 }
 
 class Replacer < OpenStruct
@@ -49,12 +49,6 @@ class VkAttachments
   end
 end
 
-class String
-  def to_vk_body
-    self + "\n" unless self.empty?
-  end
-end
-
 class Fixnum
   def to_vk_date
     time_date = Time.at(self)
@@ -87,7 +81,7 @@ class VkHelper
 
   def VkHelper.body(message)
     Replacer.new(
-        body: message['body'].to_vk_body,
+        body: message['body'],
         attach: VkAttachments.new(message['attachments']),
         fwd: forwards(message['fwd_messages'])
     ).render($templates[:message])

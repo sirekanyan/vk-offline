@@ -45,33 +45,25 @@ def main_buttons(user, msg, history)
 end
 
 def refresh_history(uid)
-  messages = []
-  username = ''
-  online = false
-  if uid
-    users = $vk.users([uid], :fields => 'online')
-    if users == -1
-      return '(check user id)'
-    end
-    user = users.first
+  begin
+    messages = $vk.messages_getHistory(:user_id => uid)
+    user = $vk.user(uid, :fields => 'online')
     username = user['first_name']
     online = user['online'] == 1
-    messages = $vk.messages_getHistory(:user_id => uid)
+    refresh_messages(messages, username, online)
+  rescue Exception => e
+    return "(#{e.message})"
   end
-  refresh_messages(messages, username, online)
 end
 
 def refresh_messages(messages, username = nil, online = false)
-  return '(check user id)' if messages.shift == -1
-  out = ''
+  messages.shift
   if messages.empty?
-    out += '(no messages yet)'
-  else
-    messages.each do |msg|
-      out += VkHelper.message(msg, username, online) + "\n"
-    end
+    raise 'no messages yet'
   end
-  out
+  messages.map do |msg|
+    VkHelper.message(msg, username, online)
+  end.join()
 end
 
 def history_button(text, user, history)
@@ -121,12 +113,16 @@ def send_button(text, user, msg, history)
     button.signal_connect('clicked') do
       uid = parse_uid(user.text)
       unless uid.nil?
-        mid = $vk.messages_send(:user_id => uid, :message => msg.text)
-        usr = $vk.user(uid)['first_name']
-        puts "Message ##{mid} for #{usr} has been sent"
-        history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
-        Thread.new do
-          history.buffer.text = refresh_history(uid)
+        begin
+          mid = $vk.messages_send(:user_id => uid, :message => msg.text)
+          usr = $vk.user(uid)['first_name']
+          puts "Message ##{mid} for #{usr} has been sent"
+          history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
+          Thread.new do
+            history.buffer.text = refresh_history(uid)
+          end
+        rescue Exception => e
+
         end
       end
     end
