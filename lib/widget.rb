@@ -25,12 +25,14 @@ class VkontakteWidget
   end
 
   def parse_uid(username)
-    if u = username.match(/<id(\d+)>$/)
-      u[1]
-    elsif u = username.match(/^(\d+)/)
-      u[1]
+    if !(uid = username.match(/<id(\d+)>$/)).nil?
+      uid[1]
+    elsif !(uid = username.match(/^(\d+)/)).nil?
+      uid[1]
+    elsif username.empty?
+      raise 'user field is empty'
     else
-      nil
+      raise "cannot find user \"#{username}\""
     end
   end
 
@@ -53,8 +55,9 @@ class VkontakteWidget
     end
   end
 
-  def refresh_history(uid)
+  def refresh_history(user_text)
     begin
+      uid = parse_uid(user_text)
       messages = @vk.messages_getHistory(:user_id => uid)
       user = @vk.user(uid, :fields => 'online')
       username = user['first_name']
@@ -80,9 +83,7 @@ class VkontakteWidget
       button.signal_connect('clicked') do
         history.buffer.text = 'getting...'
         Thread.new do
-          uid = parse_uid(user.text)
-          history.buffer.text = refresh_history(uid) unless uid.nil?
-          history.buffer.text = '(no messages)' if uid.nil?
+          history.buffer.text = refresh_history(user.text)
         end
       end
       return button
@@ -120,19 +121,17 @@ class VkontakteWidget
   def send_button(text, user, msg, history)
     Gtk::Button.create(text) do |button|
       button.signal_connect('clicked') do
-        uid = parse_uid(user.text)
-        unless uid.nil?
-          begin
-            mid = @vk.messages_send(:user_id => uid, :message => msg.text)
-            usr = @vk.user(uid)['first_name']
-            puts "Message ##{mid} for #{usr} has been sent"
-            history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
-            Thread.new do
-              history.buffer.text = refresh_history(uid)
-            end
-          rescue Exception => e
-
+        begin
+          uid = parse_uid(user.text)
+          mid = @vk.messages_send(:user_id => uid, :message => msg.text)
+          usr = @vk.user(uid)['first_name']
+          puts "Message ##{mid} for #{usr} has been sent"
+          history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
+          Thread.new do
+            history.buffer.text = refresh_history(uid)
           end
+        rescue Exception => e
+          history.buffer.text = "#{e.message}"
         end
       end
       return button
@@ -153,9 +152,7 @@ class VkontakteWidget
     Gtk::TextView.create do |history|
       user.signal_connect('focus_out_event') {
         Thread.new {
-          uid = parse_uid(user.text)
-          history.buffer.text = refresh_history(uid) unless uid.nil?
-          history.buffer.text = '(no messages)' if uid.nil?
+          history.buffer.text = refresh_history(parse_uid(user.text))
         }
         false
       }

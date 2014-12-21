@@ -4,17 +4,17 @@ require_relative 'lib/helper'
 require_relative 'lib/widget'
 require_relative 'lib/vk-offline'
 
-app = VkontakteOffline.new
+application = VkontakteOffline.new
 
-app.load_friends(fields: 'uid,online', order: 'hints')
+application.load_friends(fields: 'uid', order: 'hints')
 
 if File.exists?('friends.txt')
   File.read('friends.txt').split("\n").each_slice(250) do |i|
-    app.load_users(user_ids: i.join(','), fields: 'online')
+    application.load_users(user_ids: i.join(','))
   end
 else
   puts '| You may specify more users with friends.txt file'
   puts '| Just create friends.txt file with list of user ids'
 end
 
-VkontakteWidget.new(app).start
+VkontakteWidget.new(application).start
