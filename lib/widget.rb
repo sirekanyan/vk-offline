@@ -97,7 +97,6 @@ class VkontakteWidget
       button.signal_connect('clicked') do
         history.buffer.text = 'getting...'
         Thread.new do
-          uid = parse_uid(user.text)
           history.buffer.text = refresh_messages(@vk.messages_get)
         end
       end
@@ -128,7 +127,7 @@ class VkontakteWidget
           puts "Message ##{mid} for #{usr} has been sent"
           history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
           Thread.new do
-            history.buffer.text = refresh_history(uid)
+            history.buffer.text = refresh_history(user.text)
           end
         rescue Exception => e
           history.buffer.text = "#{e.message}"
@@ -152,7 +151,7 @@ class VkontakteWidget
     Gtk::TextView.create do |history|
       user.signal_connect('focus_out_event') {
         Thread.new {
-          history.buffer.text = refresh_history(parse_uid(user.text))
+          history.buffer.text = refresh_history(user.text)
         }
         false
       }
