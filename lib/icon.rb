@@ -1,4 +1,12 @@
 class Icon
+  def initialize(vk, filename)
+    @vk = vk
+    @max_id = 0
+    @icon = icon(filename)
+    menu(@icon)
+    start
+  end
+
   def menu(icon)
     Gtk::Menu.create do |menu|
       quit = Gtk::ImageMenuItem.new(Gtk::Stock::QUIT)
@@ -26,19 +34,15 @@ class Icon
     end
   end
 
-  def initialize(vk)
-    @vk = vk
-    @max_id = 0
-
+  def icon(filename)
     Gtk::StatusIcon.create do |icon|
-      icon.pixbuf = Gdk::Pixbuf.new('vk.ico')
-      icon.signal_connect('activate') do |ic|
-        ic.blinking = false
+      icon.pixbuf = Gdk::Pixbuf.new(filename)
+      icon.signal_connect('activate') do |i|
+        i.blinking = false
         messages = @vk.messages_get :filters => 1
         messages.shift
         @max_id = messages.map { |m| m['mid'] }.max
       end
-      menu(icon)
     end
   end
 

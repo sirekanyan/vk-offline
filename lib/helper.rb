@@ -60,6 +60,18 @@ class Fixnum
 end
 
 class VkHelper
+  def self.parse_uid(username)
+    if !(uid = username.match(/<id(\d+)>$/)).nil?
+      uid[1]
+    elsif !(uid = username.match(/^(\d+)/)).nil?
+      uid[1]
+    elsif username.empty?
+      raise 'user field is empty'
+    else
+      raise "cannot find user \"#{username}\""
+    end
+  end
+
   def VkHelper.forwards(content)
     fwd = ''
     unless content.nil?

@@ -2,10 +2,13 @@ require 'vk-ruby'
 require_relative 'icon'
 require_relative 'friends'
 require_relative 'helper'
+require_relative 'action'
 
 class GLib::Object
   def self.create(*args)
-    yield(new(*args))
+    object = self.new *args
+    yield object
+    object
   end
 
   def append(widget, expand: false, fill: false, padding: 3)
@@ -24,32 +27,20 @@ class Widget
   def initialize
     @vk = Vkontakte.new
     @friends= Friends.new(@vk)
-    @icon = Icon.new(@vk)
-    @icon.start
-  end
-
-  def parse_uid(username)
-    if !(uid = username.match(/<id(\d+)>$/)).nil?
-      uid[1]
-    elsif !(uid = username.match(/^(\d+)/)).nil?
-      uid[1]
-    elsif username.empty?
-      raise 'user field is empty'
-    else
-      raise "cannot find user \"#{username}\""
-    end
+    @action = Action.new(@vk)
+    Icon.new(@vk, 'vk.ico').start
   end
 
   def simple_box(text_label, entity)
-    Gtk::Label.create($labels[text_label]) do |label|
-      entity.width_chars = 40
-      label.width_chars = $labels_size
-      label.xalign = 0
-      label.yalign = 0.5
-      if text_label == :user
-        online_status(entity, label)
-      end
-      Gtk::HBox.create(false, 5) do |hbox|
+    Gtk::HBox.create(false, 5) do |hbox|
+      Gtk::Label.create($labels[text_label]) do |label|
+        entity.width_chars = 40
+        label.width_chars = $labels_size
+        label.xalign = 0
+        label.yalign = 0.5
+        if text_label == :user
+          @action.update_online_status(entity, label)
+        end
         hbox.pack_start_defaults(label)
         hbox.pack_start_defaults(entity)
       end
@@ -60,7 +51,7 @@ class Widget
     user.signal_connect('focus_out_event') do
       Thread.new do
         begin
-          usr = @vk.user(parse_uid(user.text), :fields => 'online')
+          usr = @vk.user(VkHelper.parse_uid(user.text), :fields => 'online')
           online = usr['online'] == 1
           label.markup = online ? "<span foreground='green'>#{label.text}</span>" : label.text
         rescue Exception => e
@@ -71,16 +62,23 @@ class Widget
     end
   end
 
-  def main_buttons(user, msg, history)
+  def buttons(user, msg, history)
     Gtk::HBox.create(true, 0) do |buttons|
-      buttons.append(left_buttons(user, history))
-      buttons.append(right_buttons(user, msg, history))
+      Gtk::HBox.create(true, 0) do |left|
+        left.append(history_button('Show history', user, history))
+        left.append(new_messages_button('Show new', user, history))
+        buttons.append(left)
+      end
+      Gtk::HBox.create(true, 0) do |right|
+        right.append(send_button('Send message', user, msg, history))
+        buttons.append(right)
+      end
     end
   end
 
   def refresh_history(user_text)
     begin
-      uid = parse_uid(user_text)
+      uid = VkHelper.parse_uid(user_text)
       messages = @vk.messages_getHistory(:user_id => uid)
       user = @vk.user(uid, :fields => 'online')
       refresh_messages(messages, user['first_name'])
@@ -121,7 +119,6 @@ class Widget
           history.buffer.text = refresh_messages(@vk.messages_get)
         end
       end
-      return button
     end
   end
 
@@ -142,7 +139,7 @@ class Widget
     Gtk::Button.create(text) do |button|
       button.signal_connect('clicked') do
         begin
-          uid = parse_uid(user.text)
+          uid = VkHelper.parse_uid(user.text)
           mid = @vk.messages_send(:user_id => uid, :message => msg.text)
           usr = @vk.user(uid)['first_name']
           puts "Message ##{mid} for #{usr} has been sent"
@@ -154,15 +151,14 @@ class Widget
           history.buffer.text = "(#{e.message})"
         end
       end
-      return button
     end
   end
 
   def scrolled_win(textview)
-    Gtk::ScrolledWindow.create do |scrolled_win|
-      scrolled_win.add(textview)
-      scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
-      Gtk::VBox.create(false, 5) do |vbox|
+    Gtk::VBox.create(false, 5) do |vbox|
+      Gtk::ScrolledWindow.create do |scrolled_win|
+        scrolled_win.add(textview)
+        scrolled_win.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_ALWAYS)
         vbox.pack_start_defaults(scrolled_win)
       end
     end
@@ -179,7 +175,6 @@ class Widget
       history.left_margin = 10
       history.editable = false
       history.wrap_mode = Gtk::TextTag::WRAP_WORD
-      history
     end
   end
 
@@ -207,7 +202,7 @@ class Widget
       main.append(simple_box(:user, user))
       main.append(simple_box(:message, msg))
       history = history_textview(user)
-      main.append(main_buttons(user, msg, history))
+      main.append(buttons(user, msg, history))
       main.append(Gtk::HSeparator.new, fill: true)
       main.append(scrolled_win(history), expand: true, fill: true)
     end
