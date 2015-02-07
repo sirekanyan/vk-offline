@@ -17,8 +17,8 @@ class GLib::Object
 end
 
 $labels = {
-    :user => 'User:',
-    :message => 'Message:'
+    user: 'User:',
+    message: 'Message:'
 }
 
 $labels_size = $labels.map { |_, v| v.length }.max
@@ -26,7 +26,7 @@ $labels_size = $labels.map { |_, v| v.length }.max
 class Widget
   def initialize
     @vk = Vkontakte.new
-    @friends= Friends.new(@vk)
+    @friends = Friends.new(@vk)
     @action = Action.new(@vk)
     Icon.new(@vk, 'vk.ico').start
   end
@@ -47,21 +47,6 @@ class Widget
     end
   end
 
-  def online_status(user, label)
-    user.signal_connect('focus_out_event') do
-      Thread.new do
-        begin
-          usr = @vk.user(VkHelper.parse_uid(user.text), :fields => 'online')
-          online = usr['online'] == 1
-          label.markup = online ? "<span foreground='green'>#{label.text}</span>" : label.text
-        rescue Exception => e
-          puts e
-        end
-      end
-      false
-    end
-  end
-
   def buttons(user, msg, history)
     Gtk::HBox.create(true, 0) do |buttons|
       Gtk::HBox.create(true, 0) do |left|
@@ -76,35 +61,9 @@ class Widget
     end
   end
 
-  def refresh_history(user_text)
-    begin
-      uid = VkHelper.parse_uid(user_text)
-      messages = @vk.messages_getHistory(:user_id => uid)
-      user = @vk.user(uid, :fields => 'online')
-      refresh_messages(messages, user['first_name'])
-    rescue Exception => e
-      return "(#{e.message})"
-    end
-  end
-
-  def refresh_messages(messages, username = nil)
-    messages.shift
-    if messages.empty?
-      raise 'no messages yet'
-    end
-    messages.map do |msg|
-      VkHelper.message(msg, username)
-    end.join()
-  end
-
   def history_button(text, user, history)
     Gtk::Button.create(text) do |button|
-      button.signal_connect('clicked') do
-        history.buffer.text = 'getting...'
-        Thread.new do
-          history.buffer.text = refresh_history(user.text)
-        end
-      end
+      @action.click_history_button(button, user, history)
       return button
     end
   end
@@ -112,13 +71,8 @@ class Widget
   def new_messages_button(text, user, history)
     user.text = ''
     Gtk::Button.create(text) do |button|
-      button.xalign=1.0
-      button.signal_connect('clicked') do
-        history.buffer.text = 'getting...'
-        Thread.new do
-          history.buffer.text = refresh_messages(@vk.messages_get)
-        end
-      end
+      button.xalign = 1.0
+      @action.show_new_messages(button, history)
     end
   end
 
@@ -137,20 +91,7 @@ class Widget
 
   def send_button(text, user, msg, history)
     Gtk::Button.create(text) do |button|
-      button.signal_connect('clicked') do
-        begin
-          uid = VkHelper.parse_uid(user.text)
-          mid = @vk.messages_send(:user_id => uid, :message => msg.text)
-          usr = @vk.user(uid)['first_name']
-          puts "Message ##{mid} for #{usr} has been sent"
-          history.buffer.text = "Me:\nsending...\n\n" + history.buffer.text
-          Thread.new do
-            history.buffer.text = refresh_history(user.text)
-          end
-        rescue Exception => e
-          history.buffer.text = "(#{e.message})"
-        end
-      end
+      @action.send_message(button, user, msg, history)
     end
   end
 
@@ -166,12 +107,7 @@ class Widget
 
   def history_textview(user)
     Gtk::TextView.create do |history|
-      user.signal_connect('focus_out_event') do
-        Thread.new do
-          history.buffer.text = refresh_history(user.text)
-        end
-        false
-      end
+      @action.focus_out_user(history, user)
       history.left_margin = 10
       history.editable = false
       history.wrap_mode = Gtk::TextTag::WRAP_WORD
@@ -205,6 +141,7 @@ class Widget
       main.append(buttons(user, msg, history))
       main.append(Gtk::HSeparator.new, fill: true)
       main.append(scrolled_win(history), expand: true, fill: true)
+      main.append(simplest_box(:user, user))
     end
   end
 end
